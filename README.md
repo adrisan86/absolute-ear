@@ -43,6 +43,18 @@ Si el puerto 8000 esta ocupado:
     API_PORT=8010 npm run api
     VITE_API_PROXY_TARGET=http://127.0.0.1:8010 npm run dev
 
+## GitHub Pages
+
+La web estatica puede desplegarse en GitHub Pages para usar el microfono bajo HTTPS:
+
+    GITHUB_PAGES=true VITE_SCORE_API_ENABLED=false npm run build
+
+URL prevista:
+
+    https://adrisan86.github.io/absolute-ear/
+
+GitHub Pages sirve solo el frontend. La API FastAPI de partituras necesita un backend HTTPS separado.
+
 ## Validacion
 
     npm run test

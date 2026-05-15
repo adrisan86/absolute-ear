@@ -30,9 +30,15 @@ export function ScoreUpload() {
   const [analysis, setAnalysis] = useState<ScoreAnalysis | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const apiBaseUrl = (import.meta.env.VITE_SCORE_API_BASE_URL ?? '').replace(/\/$/, '')
+  const isScoreApiEnabled = import.meta.env.VITE_SCORE_API_ENABLED !== 'false'
 
   async function submitScore() {
     if (!file) return
+    if (!isScoreApiEnabled) {
+      setError('La API de partituras no esta conectada en este despliegue')
+      return
+    }
 
     const body = new FormData()
     body.append('file', file)
@@ -40,7 +46,7 @@ export function ScoreUpload() {
     setError(null)
 
     try {
-      const response = await fetch('/api/scores/analyze', {
+      const response = await fetch(`${apiBaseUrl}/api/scores/analyze`, {
         method: 'POST',
         body,
       })
@@ -75,12 +81,12 @@ export function ScoreUpload() {
         </label>
         <button
           className="primary-action"
-          disabled={!file || isLoading}
+          disabled={!file || isLoading || !isScoreApiEnabled}
           onClick={submitScore}
           type="button"
         >
           <UploadCloud size={18} />
-          {isLoading ? 'Analizando' : 'Analizar partitura'}
+          {isLoading ? 'Analizando' : isScoreApiEnabled ? 'Analizar partitura' : 'API no conectada'}
         </button>
         {error ? <p className="error-line">{error}</p> : null}
       </div>
