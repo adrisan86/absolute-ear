@@ -45,6 +45,23 @@ describe('music helpers', () => {
     expect(chord).toBeNull()
   })
 
+  it('does not turn strong piano harmonics into a major chord', () => {
+    const analysis = analyzeChordFromFrequencyEvidence(
+      [
+        { frequency: 261.63, strength: 0.18 },
+        { frequency: 523.25, strength: 0.74 },
+        { frequency: 784, strength: 0.66 },
+        { frequency: 1046.5, strength: 0.58 },
+        { frequency: 1318.5, strength: 0.5 },
+      ],
+      440,
+      'piano',
+    )
+
+    expect(analysis.best).toBeNull()
+    expect(analysis.activePitchClasses).toEqual(['C'])
+  })
+
   it('keeps a triad when extra harmonics are present', () => {
     const chord = detectChordFromFrequencies([261.63, 329.63, 392, 523.25, 659.25, 784])
 
@@ -99,5 +116,25 @@ describe('music helpers', () => {
     )
 
     expect(analysis.best?.name).toBe('Do')
+  })
+
+  it('detects a noisy piano triad with weak upper fundamentals', () => {
+    const analysis = analyzeChordFromFrequencyEvidence(
+      [
+        { frequency: 261.63, strength: 0.42 },
+        { frequency: 329.63, strength: 0.13 },
+        { frequency: 392, strength: 0.12 },
+        { frequency: 523.25, strength: 0.55 },
+        { frequency: 659.25, strength: 0.2 },
+        { frequency: 784, strength: 0.22 },
+        { frequency: 1046.5, strength: 0.38 },
+        { frequency: 740, strength: 0.04 },
+      ],
+      440,
+      'piano',
+    )
+
+    expect(analysis.best?.name).toBe('Do')
+    expect(analysis.activePitchClasses).toEqual(['C', 'E', 'G'])
   })
 })

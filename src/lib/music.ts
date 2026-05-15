@@ -95,10 +95,19 @@ const CHORD_PATTERNS: ChordPattern[] = [
 ]
 
 const MIN_CHORD_PITCH_CLASSES = 3
-const MIN_CHORD_CONFIDENCE = 0.66
-const MIN_CANDIDATE_CONFIDENCE = 0.46
-const MIN_ACTIVE_TONE_WEIGHT = 0.18
 const HARMONIC_TOLERANCE_CENTS = 35
+
+function activeToneThreshold(mode: InstrumentMode) {
+  return mode === 'piano' ? 0.1 : 0.14
+}
+
+function candidateConfidenceThreshold(mode: InstrumentMode) {
+  return mode === 'piano' ? 0.36 : 0.42
+}
+
+function chordConfidenceThreshold(mode: InstrumentMode) {
+  return mode === 'piano' ? 0.52 : 0.6
+}
 
 function log2(value: number) {
   return Math.log(value) / Math.log(2)
@@ -224,7 +233,7 @@ function removeLikelyHarmonics(
 ) {
   const independent: typeof evidence = []
   const tolerance = mode === 'piano' ? HARMONIC_TOLERANCE_CENTS * 0.8 : HARMONIC_TOLERANCE_CENTS
-  const strengthLimit = mode === 'piano' ? 0.9 : 1.18
+  const strengthLimit = mode === 'piano' ? 6 : 3
 
   for (const entry of evidence) {
     const isHarmonic = independent.some((lowerEntry) => {
@@ -287,10 +296,12 @@ function chordName(root: PitchClass, suffix: string, bass?: PitchClass) {
 function scoreChordCandidates(
   pitchClassWeights: Map<PitchClass, number>,
   activePitchClasses: PitchClass[],
+  mode: InstrumentMode,
   bass?: PitchClass,
 ) {
   const pitchClassSet = new Set(activePitchClasses)
   const candidates: ChordCandidate[] = []
+  const minCandidateConfidence = candidateConfidenceThreshold(mode)
 
   for (const root of PITCH_CLASSES) {
     const rootIndex = pitchClassIndex(root)
@@ -318,7 +329,7 @@ function scoreChordCandidates(
       const confidence =
         coverage * 0.82 + hitRatio * 0.22 - missing * 0.16 - extrasWeight * 0.1 - extras.length * 0.03
 
-      if (confidence >= MIN_CANDIDATE_CONFIDENCE) {
+      if (confidence >= minCandidateConfidence) {
         const resolvedBass = bass && uniqueRequired.includes(bass) ? bass : undefined
         const names = chordName(root, pattern.suffix, resolvedBass)
         candidates.push({
@@ -345,7 +356,7 @@ export function analyzeChordFromFrequencyEvidence(
     (left, right) => pitchClassIndex(left) - pitchClassIndex(right),
   )
   const activePitchClasses = pitchClasses.filter(
-    (pitchClass) => (pitchClassWeights.get(pitchClass) ?? 0) >= MIN_ACTIVE_TONE_WEIGHT,
+    (pitchClass) => (pitchClassWeights.get(pitchClass) ?? 0) >= activeToneThreshold(mode),
   )
   const pitchClassEvidence = pitchClassEvidenceFromWeights(pitchClassWeights)
 
@@ -360,8 +371,8 @@ export function analyzeChordFromFrequencyEvidence(
     }
   }
 
-  const candidates = scoreChordCandidates(pitchClassWeights, activePitchClasses, bass)
-  const best = candidates[0]?.confidence >= MIN_CHORD_CONFIDENCE ? candidates[0] : null
+  const candidates = scoreChordCandidates(pitchClassWeights, activePitchClasses, mode, bass)
+  const best = candidates[0]?.confidence >= chordConfidenceThreshold(mode) ? candidates[0] : null
 
   return {
     best,

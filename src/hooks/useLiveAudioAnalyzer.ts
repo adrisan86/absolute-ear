@@ -220,6 +220,7 @@ export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode 
           frequencyData,
           audioContext.sampleRate,
           analyser.fftSize,
+          36,
         )
         const mode = instrumentModeRef.current
         const config = MODE_CONFIG[mode]
