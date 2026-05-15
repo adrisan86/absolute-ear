@@ -38,6 +38,11 @@ O en una sola:
 
 La web queda en http://localhost:5173. El microfono funciona en localhost o HTTPS.
 
+Si el puerto 8000 esta ocupado:
+
+    API_PORT=8010 npm run api
+    VITE_API_PROXY_TARGET=http://127.0.0.1:8010 npm run dev
+
 ## Validacion
 
     npm run test

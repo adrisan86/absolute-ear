@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "api": "backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000",
+    "api": "sh -c 'backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port ${API_PORT:-8000}'",
     "dev:all": "concurrently -k -n web,api \"npm run dev\" \"npm run api\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
