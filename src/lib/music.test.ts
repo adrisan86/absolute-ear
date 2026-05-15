@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { centsStatus, detectChordFromFrequencies, frequencyToNote } from './music'
+import {
+  centsStatus,
+  detectChordFromFrequencies,
+  detectChordFromFrequencyEvidence,
+  frequencyToNote,
+} from './music'
 
 describe('music helpers', () => {
   it('maps A4 exactly', () => {
@@ -30,6 +35,18 @@ describe('music helpers', () => {
 
   it('keeps a triad when extra harmonics are present', () => {
     const chord = detectChordFromFrequencies([261.63, 329.63, 392, 523.25, 659.25, 784])
+
+    expect(chord?.name).toBe('Do')
+  })
+
+  it('detects a triad from realistic spectrum peak strengths', () => {
+    const chord = detectChordFromFrequencyEvidence([
+      { frequency: 261.63, strength: 0.55 },
+      { frequency: 329.63, strength: 0.48 },
+      { frequency: 392, strength: 0.43 },
+      { frequency: 523.25, strength: 0.28 },
+      { frequency: 784, strength: 0.22 },
+    ])
 
     expect(chord?.name).toBe('Do')
   })

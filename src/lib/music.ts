@@ -72,7 +72,7 @@ const CHORD_PATTERNS: ChordPattern[] = [
 ]
 
 const MIN_CHORD_PITCH_CLASSES = 3
-const MIN_CHORD_CONFIDENCE = 0.82
+const MIN_CHORD_CONFIDENCE = 0.66
 const HARMONIC_TOLERANCE_CENTS = 35
 
 function log2(value: number) {
@@ -152,7 +152,7 @@ function normalizeEvidence(evidence: FrequencyEvidence[]) {
     .sort((left, right) => right.strength - left.strength)
 
   const strongest = validEvidence[0]?.strength ?? 0
-  const minStrength = Math.max(0.16, strongest * 0.34)
+  const minStrength = Math.max(0.08, strongest * 0.28)
 
   return validEvidence
     .filter((entry) => entry.strength >= minStrength)
@@ -198,7 +198,15 @@ function weightedPitchClassesFromEvidence(
     weights.set(note.noteName, Math.max(weights.get(note.noteName) ?? 0, entry.strength))
   })
 
-  return weights
+  const maxWeight = Math.max(...weights.values(), 0)
+  if (maxWeight <= 0) return weights
+
+  return new Map(
+    Array.from(weights.entries()).map(([pitchClass, weight]) => [
+      pitchClass,
+      weight / maxWeight,
+    ]),
+  )
 }
 
 export function detectChordFromFrequencyEvidence(
