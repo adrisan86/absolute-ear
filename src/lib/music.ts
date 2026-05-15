@@ -116,6 +116,25 @@ function spanishPitchClass(pitchClass: PitchClass) {
   return SPANISH_NAMES[pitchClass]
 }
 
+export function midiToFrequency(midi: number, a4 = 440) {
+  return a4 * 2 ** ((midi - 69) / 12)
+}
+
+export function midiToNote(midi: number, a4 = 440): NoteReading {
+  const noteName = pitchClassFromMidi(midi)
+  const frequency = midiToFrequency(midi, a4)
+
+  return {
+    midi,
+    noteName,
+    spanishName: SPANISH_NAMES[noteName],
+    octave: Math.floor(midi / 12) - 1,
+    frequency,
+    targetFrequency: frequency,
+    cents: 0,
+  }
+}
+
 export function frequencyToNote(frequency: number, a4 = 440): NoteReading | null {
   if (!Number.isFinite(frequency) || frequency <= 0 || !Number.isFinite(a4) || a4 <= 0) {
     return null
@@ -123,7 +142,7 @@ export function frequencyToNote(frequency: number, a4 = 440): NoteReading | null
 
   const midiFloat = 69 + 12 * log2(frequency / a4)
   const midi = Math.round(midiFloat)
-  const targetFrequency = a4 * 2 ** ((midi - 69) / 12)
+  const targetFrequency = midiToFrequency(midi, a4)
   const cents = 1200 * log2(frequency / targetFrequency)
   const noteName = pitchClassFromMidi(midi)
 

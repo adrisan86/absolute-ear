@@ -5,6 +5,8 @@ import {
   detectChordFromFrequencies,
   detectChordFromFrequencyEvidence,
   frequencyToNote,
+  midiToFrequency,
+  midiToNote,
 } from './music'
 
 describe('music helpers', () => {
@@ -14,6 +16,15 @@ describe('music helpers', () => {
     expect(note?.noteName).toBe('A')
     expect(note?.octave).toBe(4)
     expect(Math.abs(note?.cents ?? 99)).toBeLessThan(0.001)
+  })
+
+  it('maps midi notes to frequency and names', () => {
+    expect(midiToFrequency(69)).toBe(440)
+
+    const note = midiToNote(60)
+    expect(note.spanishName).toBe('Do')
+    expect(note.octave).toBe(4)
+    expect(note.frequency).toBeCloseTo(261.63, 1)
   })
 
   it('marks cents direction', () => {

@@ -14,10 +14,11 @@ import { MusicalDebug } from './components/MusicalDebug'
 import { MusicHistory } from './components/MusicHistory'
 import { PianoKeyboard } from './components/PianoKeyboard'
 import { ScoreUpload } from './components/ScoreUpload'
+import { VirtualPiano } from './components/VirtualPiano'
 import { useLiveAudioAnalyzer } from './hooks/useLiveAudioAnalyzer'
 import { centsStatus, formatCents, type InstrumentMode } from './lib/music'
 
-type Tab = 'listen' | 'score'
+type Tab = 'listen' | 'piano' | 'score'
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('listen')
@@ -57,6 +58,14 @@ function App() {
           >
             <UploadCloud size={18} />
             Partitura
+          </button>
+          <button
+            className={activeTab === 'piano' ? 'active' : ''}
+            onClick={() => setActiveTab('piano')}
+            type="button"
+          >
+            <Piano size={18} />
+            Piano
           </button>
         </div>
       </header>
@@ -156,6 +165,8 @@ function App() {
           <MusicalDebug analysis={analyzer.snapshot.chordAnalysis} />
           <MusicHistory entries={analyzer.history} onClear={analyzer.clearHistory} />
         </section>
+      ) : activeTab === 'piano' ? (
+        <VirtualPiano a4={a4} />
       ) : (
         <ScoreUpload />
       )}
