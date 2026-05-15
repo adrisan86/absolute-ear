@@ -10,20 +10,24 @@ import {
 import { useMemo, useState } from 'react'
 import './App.css'
 import { CentsGauge } from './components/CentsGauge'
+import { MusicalDebug } from './components/MusicalDebug'
 import { MusicHistory } from './components/MusicHistory'
 import { PianoKeyboard } from './components/PianoKeyboard'
 import { ScoreUpload } from './components/ScoreUpload'
 import { useLiveAudioAnalyzer } from './hooks/useLiveAudioAnalyzer'
-import { centsStatus, formatCents } from './lib/music'
+import { centsStatus, formatCents, type InstrumentMode } from './lib/music'
 
 type Tab = 'listen' | 'score'
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('listen')
   const [a4, setA4] = useState(440)
-  const analyzer = useLiveAudioAnalyzer(a4)
+  const [instrumentMode, setInstrumentMode] = useState<InstrumentMode>('piano')
+  const analyzer = useLiveAudioAnalyzer(a4, instrumentMode)
   const note = analyzer.snapshot.note
   const tuningStatus = centsStatus(note?.cents)
+  const chordCandidate =
+    analyzer.snapshot.chord ?? analyzer.snapshot.chordAnalysis.alternatives[0] ?? null
 
   const detectedSummary = useMemo(() => {
     if (!note) return 'Sin nota estable'
@@ -79,6 +83,23 @@ function App() {
               </label>
             </div>
 
+            <div className="mode-toggle" aria-label="Modo instrumento" role="group">
+              <button
+                className={instrumentMode === 'general' ? 'active' : ''}
+                onClick={() => setInstrumentMode('general')}
+                type="button"
+              >
+                General
+              </button>
+              <button
+                className={instrumentMode === 'piano' ? 'active' : ''}
+                onClick={() => setInstrumentMode('piano')}
+                type="button"
+              >
+                Piano
+              </button>
+            </div>
+
             <div className="note-readout">
               <span className="note-name">{note ? note.spanishName : '--'}</span>
               <span className="note-octave">{note ? note.octave : ''}</span>
@@ -111,20 +132,28 @@ function App() {
               <h2>Acorde estimado</h2>
             </div>
             <div className="chord-name">
-              {analyzer.snapshot.chord?.name ?? 'Sin acorde claro'}
+              {analyzer.snapshot.chord
+                ? analyzer.snapshot.chord.name
+                : chordCandidate
+                  ? 'Posible ' + chordCandidate.name
+                  : 'Sin acorde claro'}
             </div>
             <p className="confidence-line">
               Confianza{' '}
-              {analyzer.snapshot.chord
-                ? `${Math.round(analyzer.snapshot.chord.confidence * 100)}%`
+              {chordCandidate
+                ? `${Math.round(chordCandidate.confidence * 100)}%`
                 : '--'}
             </p>
             <PianoKeyboard
               activeMidi={note?.midi}
-              activePitchClasses={analyzer.snapshot.chord?.pitchClasses ?? []}
+              activePitchClasses={
+                analyzer.snapshot.chord?.pitchClasses ??
+                analyzer.snapshot.chordAnalysis.activePitchClasses
+              }
             />
           </section>
 
+          <MusicalDebug analysis={analyzer.snapshot.chordAnalysis} />
           <MusicHistory entries={analyzer.history} onClear={analyzer.clearHistory} />
         </section>
       ) : (

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
-  detectChordFromFrequencyEvidence,
+  analyzeChordFromFrequencyEvidence,
   frequencyToNote,
+  type ChordAnalysis,
   type ChordCandidate,
+  type FrequencyEvidence,
+  type InstrumentMode,
   type NoteReading,
 } from '../lib/music'
 import { estimatePitch, extractSpectrumPeaks, type SpectrumPeak } from '../lib/pitch'
@@ -17,6 +20,7 @@ type BrowserWindow = Window &
 export type LiveAudioSnapshot = {
   note: NoteReading | null
   chord: ChordCandidate | null
+  chordAnalysis: ChordAnalysis
   peaks: SpectrumPeak[]
   rms: number
   clarity: number
@@ -32,20 +36,53 @@ export type LiveHistoryEntry = {
   pitchClasses?: string[]
 }
 
+const EMPTY_CHORD_ANALYSIS: ChordAnalysis = {
+  best: null,
+  alternatives: [],
+  pitchClassEvidence: [],
+  activePitchClasses: [],
+  status: 'idle',
+}
+
 const EMPTY_SNAPSHOT: LiveAudioSnapshot = {
   note: null,
   chord: null,
+  chordAnalysis: EMPTY_CHORD_ANALYSIS,
   peaks: [],
   rms: 0,
   clarity: 0,
 }
 
-const NOTE_HOLD_MS = 1400
-const CHORD_HOLD_MS = 1600
-const NOTE_CONFIRM_MS = 180
-const CHORD_CONFIRM_MS = 320
-const SILENCE_RESET_MS = 280
 const MAX_HISTORY_ENTRIES = 64
+
+const MODE_CONFIG: Record<
+  InstrumentMode,
+  {
+    noteHoldMs: number
+    chordHoldMs: number
+    noteConfirmMs: number
+    chordConfirmMs: number
+    silenceResetMs: number
+    chordWindowMs: number
+  }
+> = {
+  general: {
+    noteHoldMs: 1400,
+    chordHoldMs: 1600,
+    noteConfirmMs: 180,
+    chordConfirmMs: 320,
+    silenceResetMs: 280,
+    chordWindowMs: 850,
+  },
+  piano: {
+    noteHoldMs: 2200,
+    chordHoldMs: 2600,
+    noteConfirmMs: 140,
+    chordConfirmMs: 420,
+    silenceResetMs: 520,
+    chordWindowMs: 1500,
+  },
+}
 
 function noteKey(note: NoteReading) {
   return note.noteName + note.octave
@@ -64,7 +101,12 @@ function pushHistoryEntry(
   ])
 }
 
-export function useLiveAudioAnalyzer(a4: number) {
+type ChordFrame = {
+  seenAt: number
+  evidence: FrequencyEvidence[]
+}
+
+export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode = 'general') {
   const [snapshot, setSnapshot] = useState<LiveAudioSnapshot>(EMPTY_SNAPSHOT)
   const [history, setHistory] = useState<LiveHistoryEntry[]>([])
   const [status, setStatus] = useState<AnalyzerStatus>('idle')
@@ -74,6 +116,8 @@ export function useLiveAudioAnalyzer(a4: number) {
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const a4Ref = useRef(a4)
+  const instrumentModeRef = useRef<InstrumentMode>(instrumentMode)
+  const chordFramesRef = useRef<ChordFrame[]>([])
   const lastVisibleNoteRef = useRef<{ note: NoteReading; seenAt: number } | null>(null)
   const lastVisibleChordRef = useRef<{ chord: ChordCandidate; seenAt: number } | null>(null)
   const noteCandidateRef = useRef<{
@@ -95,6 +139,13 @@ export function useLiveAudioAnalyzer(a4: number) {
     a4Ref.current = a4
   }, [a4])
 
+  useEffect(() => {
+    instrumentModeRef.current = instrumentMode
+    chordFramesRef.current = []
+    lastVisibleChordRef.current = null
+    chordCandidateRef.current = null
+  }, [instrumentMode])
+
   const stop = useCallback(() => {
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current)
@@ -107,6 +158,7 @@ export function useLiveAudioAnalyzer(a4: number) {
     void audioContextRef.current?.close()
     audioContextRef.current = null
     analyserRef.current = null
+    chordFramesRef.current = []
     lastVisibleNoteRef.current = null
     lastVisibleChordRef.current = null
     noteCandidateRef.current = null
@@ -169,18 +221,37 @@ export function useLiveAudioAnalyzer(a4: number) {
           audioContext.sampleRate,
           analyser.fftSize,
         )
+        const mode = instrumentModeRef.current
+        const config = MODE_CONFIG[mode]
         const rawNote = pitch ? frequencyToNote(pitch.frequency, a4Ref.current) : null
-        const rawChord = detectChordFromFrequencyEvidence(
-          peaks.map((peak) => ({
+        const frameEvidence: FrequencyEvidence[] = peaks.map((peak) => ({
             frequency: peak.frequency,
             strength: peak.strength,
             decibels: peak.decibels,
-          })),
+          }))
+
+        if (pitch) {
+          frameEvidence.push({
+            frequency: pitch.frequency,
+            strength: Math.max(0.25, pitch.clarity),
+          })
+        }
+
+        chordFramesRef.current = [
+          ...chordFramesRef.current.filter((frame) => now - frame.seenAt <= config.chordWindowMs),
+          { seenAt: now, evidence: frameEvidence },
+        ]
+
+        const chordAnalysis = analyzeChordFromFrequencyEvidence(
+          chordFramesRef.current.flatMap((frame) => frame.evidence),
           a4Ref.current,
+          mode,
         )
+        const rawChord = chordAnalysis.best
         let note = rawNote
         let chord =
-          lastVisibleChordRef.current && now - lastVisibleChordRef.current.seenAt <= CHORD_HOLD_MS
+          lastVisibleChordRef.current &&
+          now - lastVisibleChordRef.current.seenAt <= config.chordHoldMs
             ? lastVisibleChordRef.current.chord
             : null
 
@@ -201,7 +272,7 @@ export function useLiveAudioAnalyzer(a4: number) {
             candidate.lastSeenAt = now
             candidate.note = rawNote
 
-            if (!candidate.logged && now - candidate.firstSeenAt >= NOTE_CONFIRM_MS) {
+            if (!candidate.logged && now - candidate.firstSeenAt >= config.noteConfirmMs) {
               pushHistoryEntry(setHistory, {
                 kind: 'note',
                 label: rawNote.spanishName + rawNote.octave,
@@ -213,12 +284,12 @@ export function useLiveAudioAnalyzer(a4: number) {
           }
         } else {
           const lastVisibleNote = lastVisibleNoteRef.current
-          if (lastVisibleNote && now - lastVisibleNote.seenAt <= NOTE_HOLD_MS) {
+          if (lastVisibleNote && now - lastVisibleNote.seenAt <= config.noteHoldMs) {
             note = lastVisibleNote.note
           }
 
           const candidate = noteCandidateRef.current
-          if (candidate && now - candidate.lastSeenAt > SILENCE_RESET_MS) {
+          if (candidate && now - candidate.lastSeenAt > config.silenceResetMs) {
             noteCandidateRef.current = null
           }
         }
@@ -238,7 +309,7 @@ export function useLiveAudioAnalyzer(a4: number) {
             candidate.lastSeenAt = now
             candidate.chord = rawChord
 
-            if (now - candidate.firstSeenAt >= CHORD_CONFIRM_MS) {
+            if (now - candidate.firstSeenAt >= config.chordConfirmMs) {
               lastVisibleChordRef.current = { chord: rawChord, seenAt: now }
               chord = rawChord
               if (!candidate.logged) {
@@ -255,7 +326,7 @@ export function useLiveAudioAnalyzer(a4: number) {
           }
         } else {
           const candidate = chordCandidateRef.current
-          if (candidate && now - candidate.lastSeenAt > SILENCE_RESET_MS) {
+          if (candidate && now - candidate.lastSeenAt > config.silenceResetMs) {
             chordCandidateRef.current = null
           }
         }
@@ -263,6 +334,7 @@ export function useLiveAudioAnalyzer(a4: number) {
         setSnapshot({
           note,
           chord,
+          chordAnalysis,
           peaks,
           rms: pitch?.rms ?? 0,
           clarity: pitch?.clarity ?? 0,

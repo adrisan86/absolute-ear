@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  analyzeChordFromFrequencyEvidence,
   centsStatus,
   detectChordFromFrequencies,
   detectChordFromFrequencyEvidence,
@@ -49,5 +50,43 @@ describe('music helpers', () => {
     ])
 
     expect(chord?.name).toBe('Do')
+  })
+
+  it('exposes chromagram evidence and chord alternatives', () => {
+    const analysis = analyzeChordFromFrequencyEvidence([
+      { frequency: 261.63, strength: 0.55 },
+      { frequency: 329.63, strength: 0.48 },
+      { frequency: 392, strength: 0.43 },
+      { frequency: 523.25, strength: 0.28 },
+    ])
+
+    expect(analysis.best?.name).toBe('Do')
+    expect(analysis.activePitchClasses).toEqual(['C', 'E', 'G'])
+    expect(analysis.pitchClassEvidence.find((entry) => entry.pitchClass === 'C')?.weight).toBe(1)
+    expect(analysis.alternatives.length).toBeGreaterThan(0)
+  })
+
+  it('names simple inversions with a bass note', () => {
+    const analysis = analyzeChordFromFrequencyEvidence([
+      { frequency: 164.81, strength: 0.8 },
+      { frequency: 196, strength: 0.62 },
+      { frequency: 261.63, strength: 0.72 },
+    ])
+
+    expect(analysis.best?.name).toBe('Do/Mi')
+  })
+
+  it('keeps weaker piano tones in piano mode', () => {
+    const analysis = analyzeChordFromFrequencyEvidence(
+      [
+        { frequency: 261.63, strength: 0.9 },
+        { frequency: 329.63, strength: 0.33 },
+        { frequency: 392, strength: 0.24 },
+      ],
+      440,
+      'piano',
+    )
+
+    expect(analysis.best?.name).toBe('Do')
   })
 })
