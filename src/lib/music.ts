@@ -33,6 +33,12 @@ export type ChordCandidate = {
   confidence: number
 }
 
+export type FrequencyEvidence = {
+  frequency: number
+  strength?: number
+  decibels?: number
+}
+
 type ChordPattern = {
   suffix: string
   intervals: number[]
@@ -64,6 +70,10 @@ const CHORD_PATTERNS: ChordPattern[] = [
   { suffix: 'maj7', intervals: [0, 4, 7, 11] },
   { suffix: 'm7', intervals: [0, 3, 7, 10] },
 ]
+
+const MIN_CHORD_PITCH_CLASSES = 3
+const MIN_CHORD_CONFIDENCE = 0.82
+const HARMONIC_TOLERANCE_CENTS = 35
 
 function log2(value: number) {
   return Math.log(value) / Math.log(2)
@@ -123,12 +133,83 @@ export function uniquePitchClassesFromFrequencies(frequencies: number[], a4 = 44
   )
 }
 
-export function detectChordFromFrequencies(
-  frequencies: number[],
+function normalizeEvidence(evidence: FrequencyEvidence[]) {
+  const validEvidence = evidence
+    .filter((entry) => Number.isFinite(entry.frequency) && entry.frequency > 0)
+    .map((entry) => {
+      const strength =
+        typeof entry.strength === 'number' && Number.isFinite(entry.strength)
+          ? entry.strength
+          : typeof entry.decibels === 'number' && Number.isFinite(entry.decibels)
+            ? Math.max(0, Math.min(1, (entry.decibels + 82) / 62))
+            : 1
+
+      return {
+        frequency: entry.frequency,
+        strength: Math.max(0, Math.min(1, strength)),
+      }
+    })
+    .sort((left, right) => right.strength - left.strength)
+
+  const strongest = validEvidence[0]?.strength ?? 0
+  const minStrength = Math.max(0.16, strongest * 0.34)
+
+  return validEvidence
+    .filter((entry) => entry.strength >= minStrength)
+    .sort((left, right) => left.frequency - right.frequency)
+}
+
+function harmonicDistanceCents(frequency: number, lowerFrequency: number) {
+  const ratio = frequency / lowerFrequency
+  const harmonic = Math.round(ratio)
+
+  if (harmonic < 2 || harmonic > 8) return Number.POSITIVE_INFINITY
+
+  return Math.abs(1200 * log2(ratio / harmonic))
+}
+
+function removeLikelyHarmonics(evidence: ReturnType<typeof normalizeEvidence>) {
+  const independent: typeof evidence = []
+
+  for (const entry of evidence) {
+    const isHarmonic = independent.some((lowerEntry) => {
+      if (entry.frequency <= lowerEntry.frequency) return false
+      if (entry.strength > lowerEntry.strength * 1.18) return false
+      return harmonicDistanceCents(entry.frequency, lowerEntry.frequency) <= HARMONIC_TOLERANCE_CENTS
+    })
+
+    if (!isHarmonic) independent.push(entry)
+  }
+
+  return independent
+}
+
+function weightedPitchClassesFromEvidence(
+  evidence: FrequencyEvidence[],
+  a4 = 440,
+): Map<PitchClass, number> {
+  const independentEvidence = removeLikelyHarmonics(normalizeEvidence(evidence))
+  const weights = new Map<PitchClass, number>()
+
+  independentEvidence.forEach((entry) => {
+    const note = frequencyToNote(entry.frequency, a4)
+    if (!note) return
+
+    weights.set(note.noteName, Math.max(weights.get(note.noteName) ?? 0, entry.strength))
+  })
+
+  return weights
+}
+
+export function detectChordFromFrequencyEvidence(
+  evidence: FrequencyEvidence[],
   a4 = 440,
 ): ChordCandidate | null {
-  const pitchClasses = uniquePitchClassesFromFrequencies(frequencies, a4)
-  if (pitchClasses.length < 3) return null
+  const pitchClassWeights = weightedPitchClassesFromEvidence(evidence, a4)
+  const pitchClasses = Array.from(pitchClassWeights.keys()).sort(
+    (left, right) => pitchClassIndex(left) - pitchClassIndex(right),
+  )
+  if (pitchClasses.length < MIN_CHORD_PITCH_CLASSES) return null
 
   const pitchClassSet = new Set(pitchClasses)
   let best: ChordCandidate | null = null
@@ -142,7 +223,15 @@ export function detectChordFromFrequencies(
       )
       const hits = required.filter((pitchClass) => pitchClassSet.has(pitchClass)).length
       const extras = pitchClasses.filter((pitchClass) => !required.includes(pitchClass)).length
-      const confidence = hits / required.length - extras * 0.08
+      const requiredWeight = required.reduce(
+        (sum, pitchClass) => sum + (pitchClassWeights.get(pitchClass) ?? 0),
+        0,
+      )
+      const extrasWeight = pitchClasses
+        .filter((pitchClass) => !required.includes(pitchClass))
+        .reduce((sum, pitchClass) => sum + (pitchClassWeights.get(pitchClass) ?? 0), 0)
+      const coverage = requiredWeight / required.length
+      const confidence = coverage - extras * 0.08 - extrasWeight * 0.05
 
       if (hits === required.length && confidence > (best?.confidence ?? 0)) {
         best = {
@@ -155,5 +244,15 @@ export function detectChordFromFrequencies(
     }
   }
 
-  return best && best.confidence >= 0.72 ? best : null
+  return best && best.confidence >= MIN_CHORD_CONFIDENCE ? best : null
+}
+
+export function detectChordFromFrequencies(
+  frequencies: number[],
+  a4 = 440,
+): ChordCandidate | null {
+  return detectChordFromFrequencyEvidence(
+    frequencies.map((frequency) => ({ frequency, strength: 1 })),
+    a4,
+  )
 }

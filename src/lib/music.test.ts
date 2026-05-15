@@ -21,4 +21,16 @@ describe('music helpers', () => {
 
     expect(chord?.name).toBe('Do')
   })
+
+  it('does not turn one note harmonics into a chord', () => {
+    const chord = detectChordFromFrequencies([261.63, 523.25, 784, 1046.5, 1318.5])
+
+    expect(chord).toBeNull()
+  })
+
+  it('keeps a triad when extra harmonics are present', () => {
+    const chord = detectChordFromFrequencies([261.63, 329.63, 392, 523.25, 659.25, 784])
+
+    expect(chord?.name).toBe('Do')
+  })
 })

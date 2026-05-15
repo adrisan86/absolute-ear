@@ -29,6 +29,7 @@
 .a4-control,
 .metric,
 .primary-action,
+.ghost-action,
 .tag-row {
   display: flex;
   align-items: center;
@@ -89,7 +90,7 @@ button:disabled {
   min-height: 430px;
 }
 
-.spectrum-panel {
+.history-panel {
   grid-column: 1 / -1;
 }
 
@@ -223,6 +224,15 @@ button:disabled {
   padding: 0 18px;
 }
 
+.ghost-action {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .metric {
   background: var(--surface-muted);
   border: 1px solid var(--border);
@@ -289,35 +299,109 @@ button:disabled {
   border-color: var(--accent-2);
 }
 
-.spectrum-bars {
+.history-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.history-header .panel-title {
+  margin-bottom: 0;
+}
+
+.notation-block {
   display: grid;
   gap: 10px;
 }
 
-.spectrum-row {
+.notation-block + .notation-block {
+  margin-top: 18px;
+}
+
+.notation-block h3 {
+  color: var(--text);
+  font-size: 15px;
+  margin: 0;
+}
+
+.notation-strip {
   align-items: center;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 82px minmax(0, 1fr) 64px;
+  background:
+    linear-gradient(var(--border) 1px, transparent 1px) 0 17px / 100% 16px,
+    var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  min-height: 112px;
+  overflow-x: auto;
+  padding: 14px;
 }
 
-.spectrum-row span,
-.spectrum-row strong {
+.notation-note,
+.history-chord {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 66px;
+}
+
+.notation-note {
+  background: var(--surface);
+  color: var(--text);
+  min-height: 70px;
+  padding: 8px 10px;
+}
+
+.notation-note strong,
+.history-chord strong {
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.notation-note small,
+.history-chord small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 11px;
+  margin-top: 4px;
+  white-space: nowrap;
 }
 
-.spectrum-meter {
-  background: var(--surface-muted);
-  border-radius: 999px;
-  height: 12px;
-  overflow: hidden;
+.notation-note.in-tune {
+  border-color: rgba(34, 197, 94, 0.38);
+  box-shadow: inset 0 -3px 0 rgba(34, 197, 94, 0.45);
 }
 
-.spectrum-meter span {
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  display: block;
-  height: 100%;
+.notation-note.flat {
+  border-color: rgba(249, 115, 22, 0.36);
+  box-shadow: inset 0 -3px 0 rgba(249, 115, 22, 0.42);
+}
+
+.notation-note.sharp {
+  border-color: rgba(239, 68, 68, 0.34);
+  box-shadow: inset 0 -3px 0 rgba(239, 68, 68, 0.38);
+}
+
+.chord-history {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.history-chord {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.28);
+  color: var(--text);
+  min-height: 54px;
+  padding: 7px 12px;
 }
 
 .score-layout {

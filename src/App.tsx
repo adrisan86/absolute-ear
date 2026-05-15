@@ -2,7 +2,6 @@ import {
   Activity,
   Gauge,
   Mic,
-  Music2,
   Piano,
   Settings2,
   Square,
@@ -11,9 +10,9 @@ import {
 import { useMemo, useState } from 'react'
 import './App.css'
 import { CentsGauge } from './components/CentsGauge'
+import { MusicHistory } from './components/MusicHistory'
 import { PianoKeyboard } from './components/PianoKeyboard'
 import { ScoreUpload } from './components/ScoreUpload'
-import { SpectrumBars } from './components/SpectrumBars'
 import { useLiveAudioAnalyzer } from './hooks/useLiveAudioAnalyzer'
 import { centsStatus, formatCents } from './lib/music'
 
@@ -126,13 +125,7 @@ function App() {
             />
           </section>
 
-          <section className="panel spectrum-panel">
-            <div className="panel-title">
-              <Music2 size={18} />
-              <h2>Espectro</h2>
-            </div>
-            <SpectrumBars peaks={analyzer.snapshot.peaks} />
-          </section>
+          <MusicHistory entries={analyzer.history} onClear={analyzer.clearHistory} />
         </section>
       ) : (
         <ScoreUpload />
