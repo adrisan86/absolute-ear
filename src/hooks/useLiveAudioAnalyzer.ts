@@ -58,8 +58,6 @@ const MAX_HISTORY_ENTRIES = 64
 const MODE_CONFIG: Record<
   InstrumentMode,
   {
-    noteHoldMs: number
-    chordHoldMs: number
     noteConfirmMs: number
     chordConfirmMs: number
     silenceResetMs: number
@@ -67,16 +65,12 @@ const MODE_CONFIG: Record<
   }
 > = {
   general: {
-    noteHoldMs: 1400,
-    chordHoldMs: 1600,
     noteConfirmMs: 180,
     chordConfirmMs: 320,
     silenceResetMs: 280,
     chordWindowMs: 850,
   },
   piano: {
-    noteHoldMs: 2200,
-    chordHoldMs: 2600,
     noteConfirmMs: 140,
     chordConfirmMs: 420,
     silenceResetMs: 520,
@@ -118,8 +112,8 @@ export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode 
   const a4Ref = useRef(a4)
   const instrumentModeRef = useRef<InstrumentMode>(instrumentMode)
   const chordFramesRef = useRef<ChordFrame[]>([])
-  const lastVisibleNoteRef = useRef<{ note: NoteReading; seenAt: number } | null>(null)
-  const lastVisibleChordRef = useRef<{ chord: ChordCandidate; seenAt: number } | null>(null)
+  const lastVisibleNoteRef = useRef<NoteReading | null>(null)
+  const lastVisibleChordRef = useRef<ChordCandidate | null>(null)
   const noteCandidateRef = useRef<{
     key: string
     firstSeenAt: number
@@ -250,14 +244,11 @@ export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode 
         )
         const rawChord = chordAnalysis.best
         let note = rawNote
-        let chord =
-          lastVisibleChordRef.current &&
-          now - lastVisibleChordRef.current.seenAt <= config.chordHoldMs
-            ? lastVisibleChordRef.current.chord
-            : null
+        // El acorde persiste hasta que se confirme otro distinto.
+        let chord = lastVisibleChordRef.current
 
         if (rawNote) {
-          lastVisibleNoteRef.current = { note: rawNote, seenAt: now }
+          lastVisibleNoteRef.current = rawNote
           const key = noteKey(rawNote)
           const candidate = noteCandidateRef.current
 
@@ -284,9 +275,10 @@ export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode 
             }
           }
         } else {
-          const lastVisibleNote = lastVisibleNoteRef.current
-          if (lastVisibleNote && now - lastVisibleNote.seenAt <= config.noteHoldMs) {
-            note = lastVisibleNote.note
+          // La última nota visible se mantiene indefinidamente hasta que
+          // se detecte otra distinta (no se desvanece por tiempo).
+          if (lastVisibleNoteRef.current) {
+            note = lastVisibleNoteRef.current
           }
 
           const candidate = noteCandidateRef.current
@@ -311,7 +303,7 @@ export function useLiveAudioAnalyzer(a4: number, instrumentMode: InstrumentMode 
             candidate.chord = rawChord
 
             if (now - candidate.firstSeenAt >= config.chordConfirmMs) {
-              lastVisibleChordRef.current = { chord: rawChord, seenAt: now }
+              lastVisibleChordRef.current = rawChord
               chord = rawChord
               if (!candidate.logged) {
                 pushHistoryEntry(setHistory, {
